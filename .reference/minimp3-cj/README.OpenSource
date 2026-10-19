@@ -1,0 +1,12 @@
+[
+    
+    {
+        "Name": "minimp3",
+        "License": "CC0-1.0 license",
+        "License File": "LICENSE.CCO v1.0",
+        "Version Number": "v1.0 ",
+        "Owner": "lieff"
+        "Upstream URL": "https://github.com/lieff/minimp3",
+        "Description": "Minimalistic MP3 decoder single header library"
+    }
+]

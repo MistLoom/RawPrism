@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <entry key="password">xml-enc-secret</entry>
+  <entry key="apiKey">xml-api-key</entry>
+  <entry key="normal">xml-normal</entry>
+</configuration>

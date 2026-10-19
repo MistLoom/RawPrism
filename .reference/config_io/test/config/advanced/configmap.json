@@ -1,0 +1,1 @@
+{"app":{"name":"cm-app","version":"3.0"},"server":{"host":"192.168.1.1","port":"6000"},"database":{"host":"cm-db","password":"cm-secret"}}

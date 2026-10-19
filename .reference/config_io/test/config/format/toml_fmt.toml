@@ -1,0 +1,6 @@
+# TOML format test
+app.name = toml-app
+app.version = "2.1.0"
+server.host = 10.0.0.1
+server.port = "5000"
+database.password = "toml-secret"

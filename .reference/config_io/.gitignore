@@ -1,0 +1,16 @@
+# 构建输出
+target/
+
+# 依赖缓存
+cjpm.lock
+.dep-cache
+.cjpm-history
+
+# 构建日志
+build_stdout.txt
+build_stderr.txt
+
+# 加密密钥（敏感文件，禁止提交）
+.encryption_key
+
+

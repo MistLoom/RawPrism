@@ -1,0 +1,3 @@
+password: "yaml-enc-secret"
+apiKey: yaml-api-key
+normal: yaml-normal

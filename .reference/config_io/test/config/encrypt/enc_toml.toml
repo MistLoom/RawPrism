@@ -1,0 +1,3 @@
+database.password = "toml-enc-secret"
+apiKey = "toml-api-key"
+normal = "toml-normal"

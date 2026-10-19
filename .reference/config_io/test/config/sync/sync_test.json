@@ -1,0 +1,1 @@
+{"app":{"name":"sync-test-app","version":"1.0.0"},"server":{"port":"8080"},"enabled":true,"maxRetries":3,"ratio":0.5,"tags":["original","test"],"secret":"sync-test-secret"}

@@ -1,0 +1,3 @@
+app.name = toml-crud-app
+server.host = 10.0.0.3
+server.port = "7070"
