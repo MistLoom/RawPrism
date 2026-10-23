@@ -10,8 +10,6 @@
 
 一般可用于：多模态检索 / RAG 的文本预处理与分片标注、大数据内容采集后的加工前处理、Agent 工具调用前后的混合载荷拆解、文档或对话流水线中的结构提取与实体定位、评测与数据治理中的格式分类等环节。
 
-设计说明见 [docs/RawPrism-design.md](./docs/RawPrism-design.md)。
-
 ---
 
 ## 支持的格式与类型
@@ -147,8 +145,6 @@ RawPrism/
 ├── LICENSE
 ├── CHANGELOG.md
 ├── README.md
-├── docs/
-│   └── RawPrism-design.md
 └── src/
     ├── builtin.cj
     ├── concurrent.cj
