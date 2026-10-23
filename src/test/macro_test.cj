@@ -5,7 +5,7 @@ package rawprism.test
 import rawprism.*
 import rawprism.core.*
 import rawprism.object.*
-import rawprism.macros.*
+import rawprism_macros.*
 import std.collection.*
 import std.unittest.*
 import std.unittest.testmacro.*

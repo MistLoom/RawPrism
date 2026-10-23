@@ -36,6 +36,9 @@ public class ScanConfig {
     public var truncateOnDepth: Bool = true
     /// 置信度阈值：低于该值的区域不登记（17：阈值暴露方式）。
     public var confidenceThreshold: Float64 = 0.0
+    /// 实体匹配长度上限（17：匹配时间对不可信输入有界）。
+    /// 单个 URL / Email 的匹配尝试超过该字节数即放弃（不命中），继续向后扫描。
+    public var maxEntityLength: Int64 = 2048
 
     public init() {}
 }

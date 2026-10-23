@@ -48,28 +48,16 @@ public func scanConcurrent(session: Session): Session {
             tasks.add(t)
         }
     }
-    // 受并行度上限约束的简单调度：每批 n 个
-    let futures = ArrayList<Future<Unit>>()
-    var launched: Int64 = 0
+    // 确定性调度（12.6 / C5）：requestType 当前由会话锁整体串行化，
+    // 任务的真实执行顺序取决于锁的获取顺序，是不确定的；而检测器的
+    // 候选登记与覆盖状态存在跨类型顺序依赖，乱序会产生与串行不同的
+    // 区域树。因此在并行度入口上按注册序逐个执行，保证与 scan() 的
+    // 结果逐字节一致；待调度粒度细化（12.1 分区间并行）后再放开。
     for (t in tasks) {
         if (session.budgetExceeded()) {
             break
         }
-        if (launched >= n) {
-            // 等待最早一批完成后再继续（合并顺序无关）
-            let first = futures[0]
-            first.get()
-            futures.remove(at: 0)
-            launched -= 1
-        }
-        let tt = t
-        futures.add(spawn {
-            requestTypeThreadSafe(session, tt)
-        })
-        launched += 1
-    }
-    for (f in futures) {
-        f.get()
+        requestTypeThreadSafe(session, t)
     }
     return session
 }

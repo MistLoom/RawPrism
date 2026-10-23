@@ -17,6 +17,9 @@ public class Region {
     public var truncated: Bool
     /// 该区间检测出错（14.4：畸形输入记为错误区间，不使会话失败）。
     public var errored: Bool
+    /// 区域同一性标识（引用相等判断用）。
+    internal let uid: Int64
+    public static var uidSeq: Int64 = 0
 
     public init(span: Span, typeId: TypeId, confidence!: Float64 = 1.0,
                 attributes!: HashMap<String, String> = HashMap<String, String>()) {
@@ -28,6 +31,8 @@ public class Region {
         this.complete = true
         this.truncated = false
         this.errored = false
+        Region.uidSeq += 1
+        this.uid = Region.uidSeq
     }
 
     public prop start: Int64 {
@@ -156,6 +161,58 @@ public class RegionTree {
             }
         }
         out
+    }
+
+    /// 同级重叠区域（7 / 17：同级允许重叠，须可查询）。
+    /// 返回与 region 同层且区间相交的其他区域（不含自身），按遍历序排列。
+    /// 遍历序即当前实现的确定性优先级：起点升序，起点相同外层优先，再按 TypeId 字典序。
+    public func overlapping(region: Region): ArrayList<Region> {
+        let out = ArrayList<Region>()
+        siblingsOf(region, region.span, out)
+        out
+    }
+
+    /// 某区间相交的全部同层区域（供 overlap 查询复用）。
+    internal func siblingsOf(region: Region, s: Span, out: ArrayList<Region>): Unit {
+        let list = containingList(region)
+        for (r in list) {
+            if (!sameRegion(r, region) && r.span.intersects(s)) {
+                out.add(r)
+            }
+        }
+    }
+
+    internal func containingList(region: Region): ArrayList<Region> {
+        let found = findSiblings(roots, region)
+        if (let Some(list) <- found) {
+            return list
+        }
+        return roots
+    }
+
+    internal func findSiblings(list: ArrayList<Region>, region: Region): ?ArrayList<Region> {
+        if (findIn(list, region)) {
+            return list
+        }
+        for (r in list) {
+            if (let Some(sub) <- findSiblings(r.children, region)) {
+                return sub
+            }
+        }
+        None
+    }
+
+    internal func findIn(list: ArrayList<Region>, region: Region): Bool {
+        for (r in list) {
+            if (sameRegion(r, region)) {
+                return true
+            }
+        }
+        false
+    }
+
+    internal func sameRegion(a: Region, b: Region): Bool {
+        a.uid == b.uid
     }
 
     /// 区域总数。

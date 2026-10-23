@@ -230,6 +230,23 @@ public class Session <: SessionLike {
         }
     }
 
+    // ---------- 输入保留报告（4.4.6：超限行为可预期、可报告） ----------
+
+    /// 当前驻留内存的字节数。
+    public func retainedBytes(): Int64 {
+        input.retainedBytes()
+    }
+
+    /// 因超出保留上限而丢弃、无法再物化的区间（只读副本）。
+    public func droppedSpans(): ArrayList<Span> {
+        input.droppedSpans()
+    }
+
+    /// 输入是否仍完整可物化。
+    public func fullyRetained(): Bool {
+        input.fullyRetained()
+    }
+
     // ---------- 内部：区域产出 ----------
 
     /// 产出区域（受 maxRegions 约束），挂到区域树。
@@ -544,6 +561,30 @@ public class Session <: SessionLike {
         lineIndexShared = li
         li.starts
     }
+
+    /// 通用共享预扫描（5.3 / 17）：同一输入上按 key 只计算一次。
+    /// 多个检测器与多实体需要相同的底层信息（换行位置、括号位置等）时，
+    /// 通过本方法取共享结果：首次调用计算并缓存，之后直接命中。
+    /// 缓存随会话生命周期，输入只读，因此结果不失效。
+    public func prescan<T>(key: String, compute: () -> T): T {
+        lock.lock()
+        try {
+            if (let Some(v) <- prescanCache.get(key)) {
+                if (let Some(t) <- (v as T)) {
+                    return t
+                }
+            }
+            // 未命中：在锁外计算可能长时间持有锁，这里直接在锁内计算，
+            // 保证同一 key 只计算一次（并发请求串行等待）。
+            let v = compute()
+            prescanCache[key] = v
+            return v
+        } finally {
+            lock.unlock()
+        }
+    }
+    /// 共享预扫描缓存：key -> 计算结果（5.3）。
+    internal let prescanCache: HashMap<String, Any> = HashMap<String, Any>()
 }
 
 internal func parseSpanAttr(s: String): ?Span {

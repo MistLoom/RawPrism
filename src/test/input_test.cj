@@ -177,6 +177,52 @@ func retentionLimitReportsUnavailable(): Unit {
 }
 
 @Test
+func retentionLimitBehaviorPredictableAndReportable(): Unit {
+    // 4.4.6 / 17：保留上限超限行为可预期、可报告
+    let parts: Array<Array<UInt8>> = [
+        "{\"a\": 1} ".toArray(),
+        "mid section ".toArray(),
+        "tail {\"b\": 2} end".toArray()
+    ]
+    let input = Input(StringChunkSource(parts), retentionLimit: 16)
+    var pulls = 0
+    while (input.hasMore()) {
+        pulls += 1
+        // 驻留量始终不超过保留上限（可预期）
+        @Assert(input.retainedBytes() <= 16)
+    }
+    // 完整性可报告：已发生丢弃
+    @Assert(!input.fullyRetained())
+    // 丢弃区间可报告：非空且位于头部（全局偏移）
+    let dropped = input.droppedSpans()
+    @Assert(dropped.size >= 1)
+    @Assert(dropped[0].start == 0)
+    // 被丢弃区间预判与 canMaterialize 一致
+    @Assert(input.isDropped(Span(0, 4)))
+    @Assert(!input.isDropped(Span(input.available - 8, input.available)))
+    // 尾部仍可物化且内容正确（不返回不完整内容）
+    let tailText = "tail {\"b\": 2} end"
+    let tail = Span(input.available - 8, input.available)
+    let expected = String.fromUtf8(tailText.toArray()[tailText.size - 8..tailText.size])
+    @Assert(input.text(tail) == expected)
+    // 会话层报告入口一致
+    let s = Session(input)
+    @Assert(s.retainedBytes() == input.retainedBytes())
+    @Assert(s.droppedSpans().size == dropped.size)
+    @Assert(!s.fullyRetained())
+}
+
+@Test
+func noRetentionLimitReportsFullyRetained(): Unit {
+    // 未设上限时输入完整可物化，丢弃报告为空
+    let input = Input(StringChunkSource(["a".toArray(), "b".toArray(), "c".toArray()]))
+    while (input.hasMore()) {}
+    @Assert(input.fullyRetained())
+    @Assert(input.droppedSpans().size == 0)
+    @Assert(input.retainedBytes() == 3)
+}
+
+@Test
 func fileInputConsistent(): Unit {
     // 4.3 大文件输入：分段读取，行为与参数输入一致
     let path = "target_test_file.txt"
@@ -202,6 +248,72 @@ func fileInputConsistent(): Unit {
     let fsrc = FileChunkSource(path, chunkSize: 4)
     let bytes = fsrc.readRange(Span(0, 5))
     @Assert(String.fromUtf8(bytes) == "# Doc")
+    remove(Path(path))
+}
+
+@Test
+func fileInputRangeRereadMaterialization(): Unit {
+    // 4.3 / 17：可重读来源按区间重读物化，驻留量有界
+    let path = "target_test_file_big.txt"
+    let f = File(Path(path), OpenMode.Write)
+    let sb = StringBuilder()
+    sb.append("# Log\n\n")
+    var i: Int64 = 0
+    while (i < 800) {
+        sb.append("line ${i}: request {\"id\": ${i}, \"ok\": true} from https://n.io/${i}\n")
+        i += 1
+    }
+    let text = sb.toString()
+    f.write(text.toArray())
+    f.close()
+
+    // 有界驻留：拉取过程中驻留量始终不超过保留上限（不整文件进内存）
+    let input = Input.fromFile(path, chunkSize: 256, retentionLimit: 1024)
+    while (input.hasMore()) {
+        @Assert(input.retainedBytes() <= 1024)
+    }
+    @Assert(input.available == Int64(text.size))
+    @Assert(!input.fullyRetained())
+    // 被保留上限丢弃的区间仍可物化：从文件按区间重读（可重读来源兜底）
+    @Assert(input.canMaterialize(Span(0, 16)))
+    @Assert(input.text(Span(0, 16)) == "# Log\n\nline 0: r")
+    let tailStart = Int64(text.size) - 30
+    @Assert(input.text(Span(tailStart, Int64(text.size))) ==
+            String.fromUtf8(text.toArray()[tailStart..Int64(text.size)]))
+    remove(Path(path))
+}
+
+@Test
+func fileInputScanConsistentWithParameter(): Unit {
+    // 4.3 / C5：文件输入（默认保留，单遍读取）与参数输入区域树一致
+    let path = "target_test_file_scan.txt"
+    let f = File(Path(path), OpenMode.Write)
+    let sb = StringBuilder()
+    sb.append("# Log\n\n")
+    var i: Int64 = 0
+    while (i < 800) {
+        sb.append("line ${i}: request {\"id\": ${i}, \"ok\": true} from https://n.io/${i}\n")
+        i += 1
+    }
+    let text = sb.toString()
+    f.write(text.toArray())
+    f.close()
+
+    let input = Input.fromFile(path, chunkSize: 256)
+    while (input.hasMore()) {}
+    let s = Session(input)
+    s.scan()
+    @Assert(s.getAll(["entity.url"]).size >= 799)
+
+    let s2 = Session(Input(text))
+    s2.scan()
+    @Assert(s.tree.ordered().size == s2.tree.ordered().size)
+    let a = s.tree.ordered()
+    let b = s2.tree.ordered()
+    for (j in 0..a.size) {
+        @Assert(spanEq(a[j].span, b[j].span))
+        @Assert(a[j].typeId.text == b[j].typeId.text)
+    }
     remove(Path(path))
 }
 

@@ -48,7 +48,7 @@
 | 统一 Object 视图 | 支持 | 来源包括 JSON、YAML、XML/HTML、CSV、TOML、front matter |
 | JSONPath（RFC 9535） | 支持 | 在 Object 上查询 |
 | 自定义检测器 / 获取器 | 支持 | 实现 `Detector` / `Getter<T>` 并注册到 `GetterRegistry` |
-| `@Detector` 属性宏 | 支持 | 源码位于 `src/macros/`；用于减少检测器声明样板 |
+| `@Detector` 属性宏 | 支持 | 独立宏包 `rawprism_macros`（`macros/`）；用于减少检测器声明样板 |
 | 检测依赖与副产物登记 | 支持 | 可声明 `dependsOn`；扫描中观察到的其它类型须登记供复用 |
 | 并发扫描 | 支持 | 见 `scanAsync`、`scanConcurrent` 等 |
 | 资源上限 | 支持 | 深度、区域数量、物化大小等由 `ScanConfig` / `ParseLimits` 配置；超限返回带截断标记的部分结果 |
@@ -145,6 +145,9 @@ RawPrism/
 ├── LICENSE
 ├── CHANGELOG.md
 ├── README.md
+├── macros/               # 独立宏包 rawprism_macros（@Detector）
+│   ├── cjpm.toml
+│   └── src/
 └── src/
     ├── builtin.cj
     ├── concurrent.cj
@@ -153,7 +156,6 @@ RawPrism/
     ├── core/
     ├── object/
     ├── parse/
-    ├── macros/
     └── test/
 ```
 

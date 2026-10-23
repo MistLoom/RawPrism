@@ -9,7 +9,7 @@
 + 统一 Object 视图与 JSONPath（RFC 9535）
 + 内置检测器与获取器；可注册自定义检测器 / 获取器
 + 并发扫描入口；ScanConfig / ParseLimits 资源上限
-+ `@Detector` 属性宏（`src/macros/`）
++ `@Detector` 属性宏（独立宏包 `rawprism_macros`，主库经路径依赖使用）
 + 单元测试与基准（`cjpm test`；报告 `target/bench_report.txt`）
 
 ## Bugfix

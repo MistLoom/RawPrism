@@ -863,6 +863,11 @@ public class UrlDetector <: Detector {
                 if (isHttp || isFtp || isWww) {
                     let urlEnd = findUrlEnd(data, i, scope.end)
                     if (urlEnd > i) {
+                        // 匹配对不可信输入有界（17）：超过实体长度上限不命中
+                        if (urlEnd - i > ctxConfig(ctx).maxEntityLength) {
+                            i += 1
+                            continue
+                        }
                         let sp = Span(i, urlEnd)
                         if (!alreadyCovered(ctx, sp)) {
                             let _ = ctx.emit(sp, typeId, 1.0, HashMap<String, String>())
@@ -937,9 +942,13 @@ public class EmailDetector <: Detector {
                 return
             }
             if (data[i] == 64) { // '@'
-                // 本地向左、域名向右
-                let ls = findWordStart(data, i, scope.start)
-                let re = findWordEnd(data, i + 1, scope.end)
+                // 本地向左、域名向右；匹配对不可信输入有界（17）：
+                // 向左/向右各最多扫 maxEntityLength 字节
+                let cap = ctxConfig(ctx).maxEntityLength
+                let lsFloor = if (i - cap > scope.start) { i - cap } else { scope.start }
+                let reCeil = if (i + 1 + cap < scope.end) { i + 1 + cap } else { scope.end }
+                let ls = findWordStart(data, i, lsFloor)
+                let re = findWordEnd(data, i + 1, reCeil)
                 if (i > ls && re > i + 1 && re - i - 1 >= 4) {
                     let local = String.fromUtf8(data[ls..i])
                     let domain = String.fromUtf8(data[i + 1..re])

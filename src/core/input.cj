@@ -98,8 +98,26 @@ public class FileChunkSource <: ChunkSource {
     }
 
     // 总长度未知时以 0 表示，只对已读区间可重读
+    internal var totalCache: Int64 = -1
+
+    /// 可重读来源的总长度；用于判断丢弃区间能否按区间重读兜底。
     internal func totalKnown(): Int64 {
-        0
+        if (totalCache >= 0) {
+            return totalCache
+        }
+        if (!exists(Path(path))) {
+            return 0
+        }
+        let f = File(Path(path), OpenMode.Read)
+        try {
+            let n = f.seek(SeekPosition.End(0))
+            f.close()
+            totalCache = n
+            return n
+        } catch (e: Exception) {
+            f.close()
+            return 0
+        }
     }
 }
 
@@ -274,9 +292,9 @@ public class Input {
         }
     }
 
-    /// 当前已接收的数据长度（全局偏移的终点）。
+    /// 逻辑输入终点（全局偏移，C2：裁剪后仍稳定）。
     public prop available: Int64 {
-        get() { data.size }
+        get() { baseOffset + data.size }
     }
 
     /// 是否有更多数据可拉取。
@@ -327,8 +345,8 @@ public class Input {
                     for (b in fresh) {
                         data.add(b)
                     }
-                    dropped.add(Span(0, cut))
-                    // 已有偏移全部下移 cut；为保持全局偏移稳定（C2），改用基准偏移记录
+                    dropped.add(Span(baseOffset, baseOffset + cut))
+                    // 驻留窗口左端前移 cut；全局偏移保持稳定（C2）
                     baseOffset += cut
                 }
                 return true
@@ -349,7 +367,8 @@ public class Input {
         let all = validateUtf8(arr)
         invalidUtf8.clear()
         for (s in all) {
-            invalidUtf8.add(s)
+            // 驻留窗口内下标换算为全局偏移（C2）
+            invalidUtf8.add(Span(baseOffset + s.start, baseOffset + s.end))
         }
         if (isStrictPolicy(policy) && all.size > 0) {
             let first = all[0]
@@ -399,8 +418,11 @@ public class Input {
 
     internal func textFromData(s: Span): String {
         // 非法 UTF-8 字节以 U+FFFD 替换，保证物化不失败（4.2 宽松策略）
+        // 全局偏移换算为驻留窗口内下标（C2：baseOffset 对齐）
+        let lo = maxI(s.start - baseOffset, 0)
+        let hi = minI(s.end - baseOffset, data.size)
         let arr = ArrayList<UInt8>()
-        for (i in s.start..s.end) {
+        for (i in lo..hi) {
             arr.add(data[i])
         }
         if (arr.size == 0) {
@@ -434,7 +456,7 @@ public class Input {
 
     /// 拉取数据直到全局偏移 reach 可用或输入结束。
     public func pullUntil(reach: Int64): Unit {
-        while (!finished && data.size + 0 < reach - baseOffset) {
+        while (!finished && baseOffset + data.size < reach) {
             if (!pullNext()) {
                 break
             }
@@ -453,6 +475,33 @@ public class Input {
     /// 非法 UTF-8 区间只读访问（4.2：宽松模式登记错误区域）。
     public func invalidUtf8Spans(): ArrayList<Span> {
         invalidUtf8
+    }
+
+    // ---------- 保留状态报告（4.4.6：超限行为可预期、可报告） ----------
+
+    /// 当前驻留在内存中的字节数（分段输入受保留上限约束）。
+    public func retainedBytes(): Int64 {
+        data.size
+    }
+
+    /// 因超出保留上限而被丢弃、无法再物化的区间（只读副本，4.4.6）。
+    public func droppedSpans(): ArrayList<Span> {
+        let out = ArrayList<Span>()
+        for (s in dropped) {
+            out.add(s)
+        }
+        out
+    }
+
+    /// 输入是否仍完整可物化（未发生保留上限丢弃）。
+    public func fullyRetained(): Bool {
+        dropped.size == 0
+    }
+
+    /// 某区间是否可能因保留上限丢弃而不可物化。
+    /// 与 canMaterialize 一致；本方法用于在获取前预判并报告原因。
+    public func isDropped(s: Span): Bool {
+        !canMaterialize(s)
     }
 
     /// 显式请求独立副本（C1：需要独立副本时由调用方显式请求）。

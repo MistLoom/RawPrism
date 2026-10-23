@@ -11,7 +11,7 @@
 //   typeId / within / dependsOn / authoritative
 // 属性：typeId（必填字符串）、within / dependsOn / authoritative（可选，字符串数组，
 // dependsOn 与 authoritative 的元素按 TypeId 解释）。
-macro package rawprism.macros
+macro package rawprism_macros
 
 import std.ast.*
 import std.collection.*
