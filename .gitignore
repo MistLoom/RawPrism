@@ -1,0 +1,20 @@
+# 构建输出
+target/
+
+# 依赖与本地缓存
+cjpm.lock
+.dep-cache
+.cjpm-history
+
+# 本地工具与会话
+.atomcode/
+
+# 本地只读参考副本，不参与构建与发布
+.reference/
+
+# 编辑器与系统
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
