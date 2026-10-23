@@ -1,1 +1,0 @@
-{"app":{"name":"json-crud-app","server":{"host":"10.0.0.1","port":"8080"}},"cluster":{"node":{"config":{"timeout":"5000"}}},"topField":"top-default","maxRetries":3,"enabled":true,"ratio":0.5,"tags":["original"]}

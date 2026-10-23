@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<configuration>
-  <entry key="appName">xml-app</entry>
-  <entry key="serverPort">7000</entry>
-  <entry key="password">xml-secret</entry>
-</configuration>

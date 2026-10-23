@@ -1,4 +1,0 @@
-appName: yaml-crud-app
-serverHost: 10.0.0.2
-serverPort: "9090"
-topField: top-default

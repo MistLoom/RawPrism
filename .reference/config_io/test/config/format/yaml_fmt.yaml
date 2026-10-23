@@ -1,6 +1,0 @@
-appName: yaml-app
-serverPort: "4000"
-debug: true
-password: "yaml-secret"
-nested:
-  key: nested-val
