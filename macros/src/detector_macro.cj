@@ -1,4 +1,4 @@
-// RawPrism 检测器属性宏（第 16 节：宏在独立的宏包中定义）。
+// RawPrism 检测器属性宏
 //
 // 用法（9.4）：
 //   @Detector[typeId = "entity.ticket", within = ["text.*"]]

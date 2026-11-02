@@ -4,7 +4,7 @@ package rawprism.core
 import std.collection.*
 
 /// 区域：分类结果的基本单元，区间 + 类型 + 置信度 + 属性 + 子区域。
-/// 已发布的区域只追加、不修改，以支持并发读取（第 7 节）。
+/// 已发布的区域只追加、不修改，以支持并发读取。
 public class Region {
     public let span: Span
     public let typeId: TypeId

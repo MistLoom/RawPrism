@@ -135,6 +135,23 @@ cjpm test
 
 基准随 `cjpm test` 运行，报告写入 `target/bench_report.txt`。
 
+运行示例（可执行程序，依赖本仓库 `rawprism` 与宏包 `rawprism_macros`）：
+
+```bash
+cd sample
+cjpm run
+```
+
+---
+
+## 文档与示例
+
+| 路径 | 内容 |
+|------|------|
+| [`doc/design.md`](./doc/design.md) | 库设计文档：包结构、依赖方向、核心组件、架构图、内置类型、并发与设计约束 |
+| [`doc/feature_api.md`](./doc/feature_api.md) | 公开 API 文档：`rawprism` / `rawprism.core` / `rawprism.object` / `rawprism_macros` 全部公开接口与用法 |
+| [`sample/`](./sample) | 可运行示例：扫描→分类→区域树→Object/JSONPath→自定义检测器；含 `data/mixed.md` 样例输入 |
+
 ---
 
 ## 目录
@@ -145,6 +162,11 @@ RawPrism/
 ├── LICENSE
 ├── CHANGELOG.md
 ├── README.md
+├── doc/                  # 提交包文档（design / feature_api）
+├── sample/               # 可运行示例（executable）
+│   ├── cjpm.toml
+│   ├── data/mixed.md
+│   └── src/main.cj
 ├── macros/               # 独立宏包 rawprism_macros（@Detector）
 │   ├── cjpm.toml
 │   └── src/

@@ -1,4 +1,4 @@
-// 对象模型：统一的树形值视图（第 10 节）。
+// 对象模型：统一的树形值视图
 // 来源：JSON、YAML、XML/HTML DOM、CSV、TOML、front matter。
 // 默认是引用输入的视图（区间引用），显式复制为独立结构由 toOwned 完成。
 package rawprism.object

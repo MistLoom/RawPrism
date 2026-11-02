@@ -1,0 +1,15 @@
+[package]
+cjc-version = "1.2.0"
+name = "rawprism_sample"
+description = "RawPrism usage sample (scan / classify / Object / JSONPath / custom detector)"
+version = "0.1.0"
+output-type = "executable"
+src-dir = "src"
+entry-point = "rawprism_sample.main"
+
+[dependencies]
+rawprism = { path = ".." }
+rawprism_macros = { path = "../macros" }
+
+[target.x86_64-w64-mingw32.bin-dependencies]
+  path-option = [ "${CANGJIE_STDX_PATH}/windows_x86_64_llvm/static/stdx" ]
