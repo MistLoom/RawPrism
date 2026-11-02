@@ -73,19 +73,11 @@ func printRegions(session: Session, selectors: Array<String>, label: String): Un
 
 // 把多行文本压成单行便于展示。
 func oneLine(s: String): String {
-    let flat = StringBuilder()
-    for (ch in s.toRuneArray()) {
-        if (ch == '\n' || ch == '\r') {
-            flat.append(" ")
-        } else {
-            flat.append(ch)
-        }
+    let flat = s.replace("\n", " ").replace("\r", "")
+    if (flat.size > 60) {
+        return flat[0..60] + "..."
     }
-    let out = flat.toString()
-    if (out.size > 60) {
-        return out[0..60] + "..."
-    }
-    out
+    flat
 }
 
 // 内联文本演示：一次给出整段输入。
@@ -108,7 +100,7 @@ func demoInMemory(): Unit {
 
     // 4) 区域树遍历（按位置顺序，深度缩进）
     println("\n== 区域树 ==")
-    session.walk((r, depth) => {
+    session.walk({ r: Region, depth: Int64 =>
         for (_ in 0..depth) {
             print("  ")
         }
@@ -184,7 +176,16 @@ main(): Int64 {
     println("========================================\n")
 
     demoInMemory()
-    demoFromFile("sample/data/mixed.md")
+    // 兼容从仓库根目录与从 sample/ 目录两种运行方式
+    let candidates = ["sample/data/mixed.md", "data/mixed.md"]
+    var demoPath = candidates[0]
+    for (p in candidates) {
+        if (exists(Path(p))) {
+            demoPath = p
+            break
+        }
+    }
+    demoFromFile(demoPath)
 
     println("\n示例结束。")
     0
