@@ -175,3 +175,24 @@ func sharedLinePrescan(): Unit {
     // 两次调用返回同一缓存实例
     @Assert(l1.size == l2.size)
 }
+
+@Test
+func csvHonorsStructureLengthLimit(): Unit {
+    // 10.3 / C7：CSV 需遵守结构长度上限（此前被静默忽略）
+    let cell = StringBuilder()
+    var i: Int64 = 0
+    while (i < 40) {
+        cell.append("x")
+        i += 1
+    }
+    let text = "a,b\n" + cell.toString() + ",tail\n"
+    let r = parseCsv(text.toArray(), limits: ParseLimits(maxStructureLength: 16))
+    @Assert(r.ok)
+    @Assert(r.truncated)
+    @Assert(r.rows.size == 1)
+    @Assert(r.rows[0].truncated)
+    // 未超限时不标注
+    let r2 = parseCsv(text.toArray())
+    @Assert(!r2.truncated)
+    @Assert(!r2.rows[0].truncated)
+}

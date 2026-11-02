@@ -94,6 +94,28 @@ func jsonPathFunctionMatchSearch(): Unit {
     @Assert(none.size == 0)
 }
 
+/// 模式可来自文档字段的语料（安全用例专用）。
+internal func literalPatternOnlyRoot(): Obj {
+    let text = """
+{"items": [{"note": "a+", "hit": "aaa"}, {"note": "zzz", "hit": "aaa"}]}
+"""
+    parseJson(text.toArray()).value.getOrThrow()
+}
+
+@Test
+func jsonPathRegexPatternMustBeLiteral(): Unit {
+    // 安全（RFC 9535）：match/search 的正则实参只接受字面量，被扫描文档不能决定模式
+    let root = literalPatternOnlyRoot()
+    // 字面量模式：两条 hit 均匹配
+    @Assert(jsonPath(root, "$.items[?match(@.hit, 'a+')]").size == 2)
+    @Assert(jsonPath(root, "$.items[?search(@.hit, 'a')]").size == 2)
+    // 同一位置改为按查询取模式：按 Nothing 处理，不产生命中
+    @Assert(jsonPath(root, "$.items[?match(@.hit, @.note)]").size == 0)
+    @Assert(jsonPath(root, "$.items[?search(@.hit, @.note)]").size == 0)
+    // 反向：文档字段作被测文本仍正常工作
+    @Assert(jsonPath(root, "$.items[?search(@.note, 'a')]").size == 1)
+}
+
 @Test
 func jsonPathFunctionValue(): Unit {
     let root = rfcStoreRoot()

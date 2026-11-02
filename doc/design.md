@@ -67,7 +67,7 @@ Session（会话，src/session.cj）
 | 方式 | 构造 | 说明 |
 |------|------|------|
 | 参数输入 | `Input(text)` / `Input(bytes)` | 整段文本一次给出 |
-| 大文件输入 | `Input.fromFile(path)` | 按固定字节块顺序读取，不整体载入；可重读来源物化时按区间重读 |
+| 大文件输入 | `Input.fromFile(path)` | 按固定字节块顺序读取，不整体载入；可重读来源物化时按区间重读，分配长度以来源实际长度为上界（不由调用方区间决定） |
 | 分段输入 | `Input(ChunkSource)` | 调用方按序产出分段，边界可落在任意位置（含多字节字符内部）；按需拉取；受 `retentionLimit` 保留上限约束，超限丢弃头部区间并可报告 |
 
 非法 UTF-8 按策略处理：`UTF8Policy.Strict` 报错，`UTF8Policy.ErrorRegion` 登记后继续（物化时以 U+FFFD 替换）。
@@ -126,8 +126,8 @@ TypeId 是层级名，选择器支持精确名（`struct.json`）、前缀（`te
 ## 依赖关系
 
 - `rawprism` 仅依赖仓颉标准库（`std.collection`、`std.sync`、`std.time`、`std.fs`、`std.io`），无第三方依赖、无 C 依赖
-- `rawprism` 依赖本仓库宏包 `rawprism_macros`（`@Detector` 宏，供用户使用，非运行期必需）
-- Windows 下若使用 `stdx` 静态库，需设置 `CANGJIE_STDX_PATH`（见 `cjpm.toml` 的 `bin-dependencies`）
+- `rawprism` 依赖仓颉中心仓制品 `rawprism_macros`（`@Detector` 宏，供用户使用，非运行期必需）
+- 不需要 `stdx`，因此无平台相关的 `bin-dependencies` 配置
 
 ## 并发
 
@@ -145,4 +145,4 @@ TypeId 是层级名，选择器支持精确名（`struct.json`）、前缀（`te
 - C5 确定性：相同输入与检测器集合产生相同区域树，与并发度、分段方式无关
 - C6 惰性物化：区域只在被请求时物化，结果可缓存
 - C7 资源有界：深度、结构长度、区域数量、物化大小、时间预算均可配置，超限返回带截断标记的部分结果
-- 健壮性：解析器深度设上限不栈溢出；YAML 别名展开次数有上限；XML 不解析外部实体；畸形输入不使会话失败（记为错误区间）
+- 健壮性：解析器深度设上限不栈溢出；YAML 别名展开次数有上限；XML 不解析外部实体；畸形输入不使会话失败（记为错误区间）；物化分配不信任调用方区间；JSONPath `match()/search()` 的正则实参限为字面量（被扫描内容不决定模式）

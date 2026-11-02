@@ -1036,18 +1036,17 @@ internal func valueEq(a: Obj, b: Obj): Bool {
 }
 
 /// 函数作为布尔（match / search）。
+/// RFC 9535 要求正则实参为字面量：若允许按查询从文档取模式，被扫描内容即可决定匹配结果，
+/// 因此第二个实参只接受字符串字面量。
 internal func evalFuncBool(fn: OFunc, cur: Obj, root: Obj): Bool {
     if (fn.args.size != 2) {
         return false
     }
-    let x = evalOperand(fn.args[0], cur, root)
-    let re = evalOperand(fn.args[1], cur, root)
-    if (let Some(xv) <- x) {
-        if (let Some(txt) <- xv.asText()) {
-            if (let Some(rv) <- re) {
-                if (let Some(reText) <- rv.asText()) {
-                    return regexMatchBool(fn.name, txt, reText)
-                }
+    if (let Some(lit) <- (fn.args[1] as OText)) {
+        let x = evalOperand(fn.args[0], cur, root)
+        if (let Some(xv) <- x) {
+            if (let Some(txt) <- xv.asText()) {
+                return regexMatchBool(fn.name, txt, lit.value)
             }
         }
     }

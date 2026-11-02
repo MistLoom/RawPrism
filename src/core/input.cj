@@ -80,11 +80,25 @@ public class FileChunkSource <: ChunkSource {
     }
 
     /// 可重读来源：按区间重新读取（4.3），供物化使用而不必保留全部内容。
+    /// 分配长度以来源实际长度为上界：不信任调用方区间，避免按任意大区间预分配。
     public func readRange(s: Span): Array<UInt8> {
+        if (s.start < 0 || s.end < s.start) {
+            throw IllegalArgumentException("非法区间 [${s.start}, ${s.end})")
+        }
+        if (!exists(Path(path))) {
+            throw IllegalArgumentException("输入文件不存在: ${path}")
+        }
         let f = File(Path(path), OpenMode.Read)
         try {
+            // 取实时长度作分配上界：既不信任调用方区间，也不依赖可能过期的长度缓存
+            let total = f.seek(SeekPosition.End(0))
+            let end = minI(s.end, total)
+            if (s.start >= end) {
+                f.close()
+                return Array<UInt8>()
+            }
             f.seek(SeekPosition.Begin(s.start))
-            let buf = Array<UInt8>(s.end - s.start, repeat: 0)
+            let buf = Array<UInt8>(end - s.start, repeat: 0)
             let n = f.read(buf)
             f.close()
             if (n <= 0) {
@@ -376,8 +390,11 @@ public class Input {
         }
     }
 
-    /// 到指定全局偏移的数据是否可用（未被丢弃）。
+    /// 到指定全局偏移的数据是否可用（未被丢弃）。区间本身非法时视为不可用。
     public func canMaterialize(s: Span): Bool {
+        if (s.start < 0 || s.end < s.start) {
+            return false
+        }
         for (d in dropped) {
             if (s.intersects(d)) {
                 // 可重读来源兜底
@@ -393,7 +410,11 @@ public class Input {
     }
 
     /// 取区间文本。偏移为全局偏移；数据被丢弃且不可重读时报告不可用（4.4.6）。
+    /// 区间超出实际长度时按实际长度裁剪；区间非法时直接报错，不进入分配。
     public func text(s: Span): String {
+        if (s.start < 0 || s.end < s.start) {
+            throw IllegalArgumentException("非法区间 [${s.start}, ${s.end})")
+        }
         if (!canMaterialize(s)) {
             throw MaterializeUnavailableException(s, "分段数据已超出保留上限")
         }

@@ -354,3 +354,44 @@ func chunkSourceErrorPropagation(): Unit {
     // 已产生的结果保持有效
     @Assert(input.text(Span(0, 3)) == "ok ")
 }
+
+@Test
+func spanBoundsDoNotDriveAllocation(): Unit {
+    // 资源安全：物化分配以来源实际长度为上界，不由调用方区间决定
+    let path = "target_test_span_bounds.txt"
+    let f = File(Path(path), OpenMode.Write)
+    let text = "line one\nline two\n"
+    f.write(text.toArray())
+    f.close()
+    let input = Input.fromFile(path, chunkSize: 8)
+    while (input.hasMore()) {}
+    // 远超文件长度的区间：按实际长度裁剪，不预分配
+    @Assert(input.text(Span(0, 1000000000000000)).size == Int64(text.size))
+    @Assert(input.text(Span(0, 20)).size == Int64(text.size))
+    // 完全越界的起点：空结果
+    @Assert(input.text(Span(1000000, 2000000)).size == 0)
+    // 非法区间报错，不进入分配
+    var reversed = false
+    try {
+        let _ = input.text(Span(5, 1))
+    } catch (e: Exception) {
+        reversed = true
+    }
+    @Assert(reversed)
+    var negative = false
+    try {
+        let _ = input.text(Span(-1, 5))
+    } catch (e: Exception) {
+        negative = true
+    }
+    @Assert(negative)
+    // 非法区间同时使预判为不可物化
+    @Assert(!input.canMaterialize(Span(5, 1)))
+    // 文件变长后重新物化：上界取实时长度，不受首次读取时的长度影响
+    let grown = text + "appended\n"
+    let f2 = File(Path(path), OpenMode.Write)
+    f2.write(grown.toArray())
+    f2.close()
+    @Assert(input.text(Span(0, 1000000000000000)).size == Int64(grown.size))
+    remove(Path(path))
+}

@@ -11,6 +11,8 @@ public class CsvResult {
     public let ok: Bool
     public let errorPos: Int64
     public let errorMessage: String
+    /// 存在因资源上限被截断的结构（C7）。
+    public var truncated: Bool = false
 
     public init(rows: ArrayList<ObjSeq>, header: ArrayList<String>,
                 ok!: Bool = true, errorPos!: Int64 = -1, errorMessage!: String = "") {
@@ -34,10 +36,10 @@ public class CsvRowData {
 }
 
 /// CSV 解析入口。
+/// 资源上限：CSV 为扁平结构，maxDepth 不适用；按 maxStructureLength 对超长行标注截断（C7）。
 public func parseCsv(data: Array<UInt8>, start!: Int64 = 0, end!: Int64 = -1,
                      delimiter!: UInt8 = 0, hasHeader!: ?Bool = None,
                      limits!: ParseLimits = ParseLimits()): CsvResult {
-    let _ = limits
     var e = end
     if (e < 0) {
         e = data.size
@@ -133,9 +135,23 @@ public func parseCsv(data: Array<UInt8>, start!: Int64 = 0, end!: Int64 = -1,
         for ((name, _) in headerRow.cells) {
             headerNames.add(name)
         }
-        return CsvResult(convertCsvRows(rows, 1), headerNames)
+        let r = CsvResult(convertCsvRows(rows, 1, limits), headerNames)
+        r.truncated = anyRowTruncated(rows, limits)
+        return r
     }
-    return CsvResult(convertCsvRows(rows, 0), ArrayList<String>())
+    let r0 = CsvResult(convertCsvRows(rows, 0, limits), ArrayList<String>())
+    r0.truncated = anyRowTruncated(rows, limits)
+    r0
+}
+
+/// 是否存在超出结构长度上限的行。
+internal func anyRowTruncated(rows: ArrayList<CsvRowData>, limits: ParseLimits): Bool {
+    for (row in rows) {
+        if (row.span.length > limits.maxStructureLength) {
+            return true
+        }
+    }
+    false
 }
 
 /// 单元格文本：剥离引号并反转义 "" -> "。
@@ -216,13 +232,17 @@ public func looksLikeHeader(rows: ArrayList<CsvRowData>): Bool {
     true
 }
 
-/// 把行数据转成 ObjSeq；有表头时在会话层转映射。
-internal func convertCsvRows(rows: ArrayList<CsvRowData>, from: Int64): ArrayList<ObjSeq> {
+/// 把行数据转成 ObjSeq；有表头时在会话层转映射。超过长度上限的行标注截断。
+internal func convertCsvRows(rows: ArrayList<CsvRowData>, from: Int64,
+                             limits: ParseLimits): ArrayList<ObjSeq> {
     let out = ArrayList<ObjSeq>()
     var i = from
     while (i < rows.size) {
         let row = rows[i]
         let seq = ObjSeq(span: row.span, formatTag: "csv:row", ref: None)
+        if (row.span.length > limits.maxStructureLength) {
+            seq.truncated = true
+        }
         for ((cell, sp) in row.cells) {
             let v = inferCsvScalar(cell, sp)
             seq.add(v)
