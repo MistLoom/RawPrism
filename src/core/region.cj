@@ -92,20 +92,52 @@ public class RegionTree {
         }
     }
 
-    public func sortByKeyPublic(list: ArrayList<Region>): Unit {
-        sortByKey(list)
+    /// 按遍历序对任意区域列表排序并返回副本（位置升序；同起点外层优先；再按 TypeId 字典序）。
+    /// 供会话层在跨包遍历时复用同一全序规则。
+    public func sortedLike(list: ArrayList<Region>): ArrayList<Region> {
+        let out = ArrayList<Region>()
+        for (r in list) {
+            out.add(r)
+        }
+        sortByKey(out)
+        out
     }
 
     internal func sortByKey(list: ArrayList<Region>): Unit {
-        // 简单插入排序：区域数量在树中逐层通常有限，且保持稳定性
-        for (i in 1..list.size) {
-            let key = list[i]
-            var j = i - 1
-            while (j >= 0 && regionBefore(key, list[j])) {
-                list[j + 1] = list[j]
-                j -= 1
+        // 稳定归并排序 O(R log R)：替换原插入排序，避免大区域数（最高 maxRegions）
+        // 下单次 ordered()/walk() 退化为 O(R²) 的算法式停顿（可用性隐患）。
+        // 比较器与稳定性与原先一致，保证确定性约束 C5。
+        let n = list.size
+        if (n < 2) {
+            return
+        }
+        let tmp = ArrayList<Region>()
+        for (r in list) {
+            tmp.add(r)
+        }
+        mergeSort(list, tmp, 0, n)
+    }
+
+    // 对 dst[lo,hi) 排序，src 为备用缓冲；逐层交换两个缓冲避免额外分配。
+    internal func mergeSort(dst: ArrayList<Region>, src: ArrayList<Region>, lo: Int64, hi: Int64): Unit {
+        if (hi - lo < 2) {
+            return
+        }
+        let mid = lo + (hi - lo) / 2
+        mergeSort(src, dst, lo, mid)
+        mergeSort(src, dst, mid, hi)
+        var i = lo
+        var j = mid
+        var k = lo
+        while (k < hi) {
+            if (i < mid && (j >= hi || !regionBefore(src[j], src[i]))) {
+                dst[k] = src[i]
+                i += 1
+            } else {
+                dst[k] = src[j]
+                j += 1
             }
-            list[j + 1] = key
+            k += 1
         }
     }
 

@@ -1028,10 +1028,17 @@ public func ctxConfig(ctx: DetectContext): ScanConfig {
 
 /// 区间是否已被同类型区域覆盖（避免重复 emit）。
 /// 不同类型的嵌套是合法的（7：子区域必须被父区域完全包含），不去重。
+/// 直接递归遍历区域树（包含判断与遍历顺序无关），避免每次调用都重建并排序全树副本。
 public func alreadyCovered(ctx: DetectContext, sp: Span): Bool {
-    let selfText = ctx.forType.text
-    for (r in ctx.session.regionTree.ordered()) {
+    coveredInList(ctx.session.regionTree.roots, ctx.forType.text, sp)
+}
+
+internal func coveredInList(list: ArrayList<Region>, selfText: String, sp: Span): Bool {
+    for (r in list) {
         if (r.typeId.text == selfText && r.span.contains(sp)) {
+            return true
+        }
+        if (coveredInList(r.children, selfText, sp)) {
             return true
         }
     }

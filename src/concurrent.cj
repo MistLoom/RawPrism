@@ -21,10 +21,6 @@ public func cancelScan(session: Session): Unit {
     session.cancelFlag.store(true)
 }
 
-/// Session 的并行扫描扩展：相互独立的检测器类型并行执行（12.1），
-/// 并行度受 config.parallelism 上限约束（12.4），
-/// 同一类型同一区间的并发请求只触发一次检测（12.5，requestType 内部加锁），
-/// 合并结果与调度顺序无关（12.6 / C5：区域树查询时按位置排序）。
 /// Session 的并行扫描（12.1-12.6）：相互独立的检测器类型并行执行，
 /// 并行度受 config.parallelism 上限约束（12.4），
 /// 同一类型同一区间的并发请求只触发一次检测（12.5，requestTypeThreadSafe 内部加锁），

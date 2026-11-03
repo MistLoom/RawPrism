@@ -6,15 +6,29 @@ import rawprism.object.*
 import rawprism.core.*
 
 /// 检测器：在给定区间内识别某种类型并产出区域。
+/// 实现者必须声明 `typeId` 并实现 `detect`；`within`/`dependsOn`/`authoritative`
+/// 有默认实现（空数组），只在需要时覆写。
 public interface Detector {
     /// 产出的主类型。
     prop typeId: TypeId
     /// 可运行的父区域选择器，空表示整个输入。
-    prop within: Array<String>
+    prop within: Array<String> {
+        get() {
+            Array<String>()
+        }
+    }
     /// 需要先完成的类型（9.5）。
-    prop dependsOn: Array<TypeId>
+    prop dependsOn: Array<TypeId> {
+        get() {
+            Array<TypeId>()
+        }
+    }
     /// 具有权威性的类型（8.3：发现直接成为区域）。
-    prop authoritative: Array<TypeId>
+    prop authoritative: Array<TypeId> {
+        get() {
+            Array<TypeId>()
+        }
+    }
     /// 在 scope 内查找并 emit 区域。
     func detect(scope: Span, ctx: DetectContext): Unit
 }

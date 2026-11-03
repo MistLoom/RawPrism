@@ -1,6 +1,8 @@
 # RawPrism API 接口文档
 
-本文档描述 RawPrism 库的全部公开 API。包结构：`rawprism`（会话与检测器）、`rawprism.core`（数据契约与输入）、`rawprism.object`（对象视图与 JSONPath）、`rawprism_macros`（`@Detector` 属性宏，独立宏包）。
+本文档描述 RawPrism 库的全部公开 API。包结构：`rawprism`（会话与检测器）、`rawprism.core`（数据契约与输入）、`rawprism.object`（对象视图与 JSONPath）。
+
+另有 `rawprism.parse`（各格式解析器实现）与 `rawprism.test`（测试）两个包：前者随库发布但不属于稳定接口，内容应经 `Session` / `Obj` 获取，不保证跨版本兼容。
 
 ## 1 快速上手
 
@@ -151,12 +153,12 @@ public class RegionResult {
 ### Detector / Getter / 上下文接口
 
 ```
-/// 检测器：在给定区间内识别某种类型并产出区域。
+/// 检测器：实现者必须声明 typeId 并实现 detect，其余属性有默认实现。
 public interface Detector {
-    prop typeId: TypeId                 // 产出的主类型
-    prop within: Array<String>          // 可运行的父区域选择器，空表示整个输入
-    prop dependsOn: Array<TypeId>       // 需要先完成的类型
-    prop authoritative: Array<TypeId>   // 具有权威性的类型（副产物直接成为区域）
+    prop typeId: TypeId                 // 产出的主类型（必填）
+    prop within: Array<String>          // 可运行的父区域选择器，默认 []（整个输入）
+    prop dependsOn: Array<TypeId>       // 需要先完成的类型，默认 []
+    prop authoritative: Array<TypeId>   // 具有权威性的类型，默认 []
     func detect(scope: Span, ctx: DetectContext): Unit
 }
 
@@ -304,6 +306,8 @@ public func spanEq(a: Span, b: Span): Bool
 
 ### TypeId
 
+日常使用无需直接构造 `TypeId`：`getAll` / `first` / `regionsOf` 等接口接收的都是普通字符串选择器（如 `"struct.json"`、`"text.*"`）。`TypeId` 是这些字符串的解析后表示，仅在编写自定义检测器（声明 `typeId`）或调用底层 `requestType` 时才需显式构造。
+
 ```
 /// 层级化类型标识：`struct.json`、`markup.html#text`、`code.block[lang=json]`。
 public struct TypeId {
@@ -355,6 +359,7 @@ public class RegionTree {
     public func intersecting(s: Span): ArrayList<Region>        // 区间查询
     public func bySelectors(selectors: Array<String>): ArrayList<Region>  // 选择器查询
     public func overlapping(region: Region): ArrayList<Region>  // 同级重叠查询
+    public func sortedLike(list: ArrayList<Region>): ArrayList<Region>  // 按遍历序排序副本
     public func size(): Int64
 }
 ```
@@ -397,6 +402,7 @@ public class Input {
                                 retentionLimit!: Int64 = -1,
                                 policy!: UTF8Policy = UTF8Policy.ErrorRegion): Input  // 大文件输入
 
+    public let retentionLimit: Int64      // 保留上限，-1 表示不限制
     public prop available: Int64            // 逻辑输入终点（全局偏移）
     public func text(s: Span): String       // 取区间文本；不可物化时抛 MaterializeUnavailableException
     public func byteAt(offset: Int64): Int64
@@ -437,6 +443,7 @@ public func validateUtf8(data: Array<UInt8>): ArrayList<Span>
 
 /// 物化不可用异常：分段数据超出保留上限时报告（4.4.6）。
 public class MaterializeUnavailableException <: Exception {
+    public init(span: Span, message: String)
     public let span: Span
 }
 ```
@@ -530,13 +537,24 @@ public func jsonPath(root: Obj, query: String): ArrayList<Obj>
 
 ---
 
-## 5 rawprism_macros 包（@Detector 属性宏）
+## 5 自定义检测器与获取器
 
-独立宏包，为被标注的类注入 `Detector` 接口要求的四个属性（`typeId`/`within`/`dependsOn`/`authoritative`），减少声明样板。
+实现 `Detector` / `Getter<T>`：只需声明 `typeId` 并实现 `detect`（`Getter` 另需 `materialize`）；`within` / `dependsOn` / `authoritative` 已由接口提供默认实现（空数组），仅在需要时覆写。
 
 ```
-@Detector[typeId = "entity.ticket", within = ["text.*"]]
 public class TicketId <: Getter<String> {
+    public prop typeId: TypeId {
+        get() {
+            TypeId("entity.ticket")
+        }
+    }
+
+    public prop within: Array<String> {
+        get() {
+            ["text.*"]
+        }
+    }
+
     public func detect(scope: Span, ctx: DetectContext): Unit {
         // 在 scope 内查找并 emit 区域
         let data = ctx.session.inputBytes()
@@ -556,18 +574,29 @@ s.scan()
 let hits = s.getAll(["entity.ticket"])
 ```
 
-| 属性 | 类型 | 缺省 | 说明 |
-|------|------|------|------|
-| `typeId` | String | （必填） | 产出的主类型 |
+| 属性 | 类型 | 默认实现 | 说明 |
+|------|------|----------|------|
+| `typeId` | TypeId | （必填） | 产出的主类型 |
 | `within` | Array\<String\> | `[]`（整个输入） | 可运行的父区域选择器 |
-| `dependsOn` | Array\<String\> | `[]` | 需要先完成的类型（按 TypeId 解释） |
-| `authoritative` | Array\<String\> | `[]` | 具有权威性的类型 |
+| `dependsOn` | Array\<TypeId\> | `[]` | 需要先完成的类型 |
+| `authoritative` | Array\<TypeId\> | `[]` | 具有权威性的类型 |
 
 嵌套获取器（依赖其他类型结果）示例：
 
 ```
-@Detector[typeId = "doc.openapi", dependsOn = ["struct.json"]]
 public class OpenApiDoc <: Getter<Obj> {
+    public prop typeId: TypeId {
+        get() {
+            TypeId("doc.openapi")
+        }
+    }
+
+    public prop dependsOn: Array<TypeId> {
+        get() {
+            [TypeId("struct.json")]
+        }
+    }
+
     public func detect(scope: Span, ctx: DetectContext): Unit {
         for (r in ctx.session.regionsOf("struct.json")) {
             if (ctx.session.objectOf(r).get("openapi").isSome()) {

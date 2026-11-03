@@ -1,20 +1,30 @@
 // RawPrism 使用示例：扫描 → 分类 → 区域树 → Object/JSONPath → 自定义检测器。
 // 运行：cd sample && cjpm run
-// 依赖：cjpm.toml 中 rawprism（path=".."）与 rawprism_macros（path="../macros"）
+// 依赖：cjpm.toml 中的 rawprism（path=".."）
 package rawprism_sample
 
 import rawprism.*
 import rawprism.core.*
 import rawprism.object.*
-import rawprism_macros.*
 import std.collection.*
 import std.fs.{Path, exists}
 
 // 自定义实体检测器：工单号 TKT-<digits>。
-// 用 @Detector 宏注入 Detector 的 typeId/within/dependsOn/authoritative 四个属性，
-// 只实现 detect 与 materialize 即可（对应 doc/feature_api.md 第 5 节）。
-@Detector[typeId = "entity.ticket", within = ["text.*"]]
+// Detector 只需声明 typeId 并实现 detect/materialize；此处覆写 within，
+// dependsOn/authoritative 沿用接口默认实现（对应 doc/feature_api.md 第 5 节）。
 public class TicketId <: Getter<String> {
+    public prop typeId: TypeId {
+        get() {
+            TypeId("entity.ticket")
+        }
+    }
+
+    public prop within: Array<String> {
+        get() {
+            ["text.*"]
+        }
+    }
+
     public func detect(scope: Span, ctx: DetectContext): Unit {
         let data = ctx.session.inputBytes()
         let key = "TKT-".toArray()

@@ -16,15 +16,12 @@ RawPrism 是纯仓颉实现的多模态文本扫描分类基础库。读入一�
 | `rawprism.core` | `src/core/` | 核心数据契约：区间（`Span`）、类型标识（`TypeId`）、区域与区域树（`Region`/`RegionTree`）、类型标记（`TypeMark`）、输入层（`Input`/`ChunkSource`）、扫描配置（`ScanConfig`/`ParseLimits`） |
 | `rawprism.parse` | `src/parse/` | 各格式解析器：json、ndjson、yaml、toml、csv、xml_html、markdown，均带原文偏移与资源上限 |
 | `rawprism.object` | `src/object/` | 统一 Object 视图（`Obj` 及 6 种值类）、JSONPath（RFC 9535）查询 |
-| `rawprism_macros` | `macros/` | 独立宏包：`@Detector` 属性宏，为检测器类注入 `typeId`/`within`/`dependsOn`/`authoritative` 四个属性 |
 | `rawprism.test` | `src/test/` | 单元/一致性/并发/基准测试套件 |
 
 ### 依赖方向
 
 ```
-应用代码
-   │
-   ├── @Detector 宏（编译期，rawprism_macros）──► 注入 Detector 四属性
+应用代码（实现 Detector / Getter<T>）
    │
    ▼
 Session（会话，src/session.cj）
@@ -44,8 +41,8 @@ Session（会话，src/session.cj）
 
 关键约束：
 - rawprism.core 不依赖其他层；rawprism.parse、rawprism.object 只依赖 rawprism.core；
-- rawprism（根包）依赖以上三包；rawprism_macros 不依赖 rawprism（宏生成代码由宿主模块解析符号）；
-- 宏包独立于主包（cjpm 宏须在单独宏包中定义）。
+- rawprism（根包）依赖以上三包；
+- 主包无任何外部模块依赖（`cjpm.toml` 不含 `[dependencies]`）。
 ```
 
 ### 核心组件
@@ -119,20 +116,19 @@ flowchart TB
 | 文本 | `text.plain`、`text.md`，子类型 `.heading`、`.paragraph`、`.code`、`.table`、`.frontmatter` | Markdown 结构区域 |
 | 代码 | `code.block[lang=...]` | 围栏代码块；lang 为 json/yaml/toml/csv 时可派生 Object |
 | 实体 | `entity.url`、`entity.email` | 文本中的实体；HTML href/src、JSON 字符串值中的 URL 作为副产物登记 |
-| 自定义 | 用户声明的 TypeId | 实现 `Detector`/`Getter<T>`（或用 `@Detector` 宏）注册即用 |
+| 自定义 | 用户声明的 TypeId | 实现 `Detector`/`Getter<T>`（只需 `typeId` 与 `detect`，其余属性有默认实现）注册即用 |
 
 TypeId 是层级名，选择器支持精确名（`struct.json`）、前缀（`text.md`）、通配（`text.*`）、子类型限定（`markup.html#text`）与参数限定（`code.block[lang=json]`）。
 
 ## 依赖关系
 
-- `rawprism` 仅依赖仓颉标准库（`std.collection`、`std.sync`、`std.time`、`std.fs`、`std.io`），无第三方依赖、无 C 依赖
-- `rawprism` 依赖仓颉中心仓制品 `rawprism_macros`（`@Detector` 宏，供用户使用，非运行期必需）
+- `rawprism` 仅依赖仓颉标准库（`std.collection`、`std.sync`、`std.time`、`std.fs`、`std.io`），无第三方依赖、无 C 依赖、无中心仓制品依赖
 - 不需要 `stdx`，因此无平台相关的 `bin-dependencies` 配置
 
 ## 并发
 
 - `scanAsync(input)` 异步扫描入口，返回 `Future<Session>`，由调用方决定何时等待
-- `scanConcurrent(session)` 按 `config.parallelism` 并行调度独立检测器类型；当前实现按注册序执行以保证与串行结果逐字节一致（确定性约束 C5），待调度粒度细化后放开
+- `scanConcurrent(session)` 按 `config.parallelism` 并行调度独立检测器类型；为保证与串行结果逐字节一致（确定性约束 C5），当前按注册序执行
 - 同一类型同一区间的并发请求只触发一次检测（会话锁串行化按需扫描）
 - `cancelScan(session)` 发出取消请求；`timeBudgetMs` 时间预算超时返回已有结果并带截断标记
 

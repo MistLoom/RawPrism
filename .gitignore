@@ -21,3 +21,6 @@ docs/
 *.swp
 .DS_Store
 Thumbs.db
+
+# 中心仓发布令牌（仅本地，绝不入库）
+cangjie-repo.toml

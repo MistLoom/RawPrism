@@ -2,13 +2,8 @@
 cjc-version = "1.2.0"
 name = "rawprism"
 description = "Text scan and classify library for multimodal AI text pipelines (Cangjie)"
-version = "0.1.0"
+version = "0.1.2"
 output-type = "static"
-src-dir = "src"
-
-[dependencies]
-rawprism_macros = { path = "./macros" }
-
-
-[target.x86_64-w64-mingw32.bin-dependencies]
-  path-option = [ "${CANGJIE_STDX_PATH}/windows_x86_64_llvm/static/stdx" ]
+repository = "https://github.com/MistLoom/RawPrism"
+license = [ "MIT" ]
+include = [ "/src", "/doc", "/LICENSE", "/CHANGELOG.md" ]

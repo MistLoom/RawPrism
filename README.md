@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Cangjie](https://img.shields.io/badge/Language-Cangjie-blue.svg)](https://cangjie-lang.cn/)
-[![cjpm](https://img.shields.io/badge/cjpm-rawprism-0.1.0-green.svg)](./cjpm.toml)
+[![cjpm](https://img.shields.io/badge/cjpm-rawprism-0.1.2-green.svg)](./cjpm.toml)
 
 纯仓颉文本扫描分类库。读入文本，识别其中的结构化内容、非结构化内容与实体，用相对整段输入的偏移区间标注类型，并按类型取出结果或派生统一对象视图。输入在会话内只读，识别结果均为对输入的区间引用。
 
@@ -47,8 +47,7 @@
 | 惰性物化 | 支持 | 区域仅在被请求时物化；结果可缓存 |
 | 统一 Object 视图 | 支持 | 来源包括 JSON、YAML、XML/HTML、CSV、TOML、front matter |
 | JSONPath（RFC 9535） | 支持 | 在 Object 上查询 |
-| 自定义检测器 / 获取器 | 支持 | 实现 `Detector` / `Getter<T>` 并注册到 `GetterRegistry` |
-| `@Detector` 属性宏 | 支持 | 独立宏包 `rawprism_macros`（`macros/`）；用于减少检测器声明样板 |
+| 自定义检测器 / 获取器 | 支持 | 实现 `Detector` / `Getter<T>`（只需 `typeId` 与 `detect`）并注册到 `GetterRegistry` |
 | 检测依赖与副产物登记 | 支持 | 可声明 `dependsOn`；扫描中观察到的其它类型须登记供复用 |
 | 并发扫描 | 支持 | 见 `scanAsync`、`scanConcurrent` 等 |
 | 资源上限 | 支持 | 深度、区域数量、物化大小等由 `ScanConfig` / `ParseLimits` 配置；超限返回带截断标记的部分结果 |
@@ -63,15 +62,17 @@
 - 仓颉 SDK 1.2.0（与 `cjpm.toml` 中 `cjc-version` 一致）
 - `cjpm` 构建与测试
 
-若使用 `stdx` 静态库，需设置 `CANGJIE_STDX_PATH`（见 `cjpm.toml` 中 `bin-dependencies`）。
+本库仅依赖仓颉标准库，不需要 `stdx`。
 
 ---
 
 ## 安装
 
+Git 仓库：
+
 ```toml
 [dependencies]
-rawprism = { git = "https://github.com/MistLoom/RawPrism.git", tag = "v0.1.0" }
+rawprism = { git = "https://github.com/MistLoom/RawPrism.git", tag = "v0.1.2" }
 ```
 
 本地路径：
@@ -79,6 +80,13 @@ rawprism = { git = "https://github.com/MistLoom/RawPrism.git", tag = "v0.1.0" }
 ```toml
 [dependencies]
 rawprism = { path = "../RawPrism", output-type = "static" }
+```
+
+仓颉中心仓制品（待上架后生效）：
+
+```toml
+[dependencies]
+rawprism = "0.1.2"
 ```
 
 ```bash
@@ -105,7 +113,9 @@ main() {
     for (got in docs) {
         let obj = got.value()
         if (let Some(name) <- obj.get("name")) {
-            println(name.asString())
+            if (let Some(s) <- name.asText()) {
+                println(s)
+            }
         }
     }
 
@@ -122,7 +132,7 @@ import rawprism.object.*
 let hits = jsonPath(root, "$..tags[*]")
 ```
 
-自定义类型：实现 `Detector` / `Getter<T>`（可声明 `typeId`、`dependsOn` 等），注册到 `GetterRegistry`。可选使用 `@Detector` 宏。
+自定义类型：实现 `Detector` / `Getter<T>`，声明 `typeId` 并实现 `detect`（`within` / `dependsOn` / `authoritative` 有接口默认实现，需要时覆写），注册到 `GetterRegistry`。
 
 ---
 
@@ -135,7 +145,7 @@ cjpm test
 
 基准随 `cjpm test` 运行，报告写入 `target/bench_report.txt`。
 
-运行示例（可执行程序，依赖本仓库 `rawprism` 与宏包 `rawprism_macros`）：
+运行示例（可执行程序，仅依赖本仓库 `rawprism`）：
 
 ```bash
 cd sample
@@ -149,7 +159,7 @@ cjpm run
 | 路径 | 内容 |
 |------|------|
 | [`doc/design.md`](./doc/design.md) | 库设计文档：包结构、依赖方向、核心组件、架构图、内置类型、并发与设计约束 |
-| [`doc/feature_api.md`](./doc/feature_api.md) | 公开 API 文档：`rawprism` / `rawprism.core` / `rawprism.object` / `rawprism_macros` 全部公开接口与用法 |
+| [`doc/feature_api.md`](./doc/feature_api.md) | 公开 API 文档：`rawprism` / `rawprism.core` / `rawprism.object` 全部公开接口与用法 |
 | [`sample/`](./sample) | 可运行示例：扫描→分类→区域树→Object/JSONPath→自定义检测器；含 `data/mixed.md` 样例输入 |
 
 ---
@@ -167,9 +177,6 @@ RawPrism/
 │   ├── cjpm.toml
 │   ├── data/mixed.md
 │   └── src/main.cj
-├── macros/               # 独立宏包 rawprism_macros（@Detector）
-│   ├── cjpm.toml
-│   └── src/
 └── src/
     ├── builtin.cj
     ├── concurrent.cj
@@ -182,10 +189,6 @@ RawPrism/
 ```
 
 ---
-
-## 版本
-
-当前版本 0.1.0。变更见 [CHANGELOG.md](./CHANGELOG.md)。
 
 ## 许可证
 

@@ -18,8 +18,8 @@ public class Session <: SessionLike {
     public let tree: RegionTree
     /// 类型标记：typeId 文本 -> 标记。
     public let marks: HashMap<String, TypeMark>
-    /// 物化缓存：region 对象 -> 对象视图（C6）。
-    internal let objCache: HashMap<Int64, Obj>
+    /// 物化缓存：区间 (起点:终点) -> 对象视图（C6）。
+    internal let objCache: HashMap<String, Obj>
     /// 截断标记（C7：超限时带截断标记的部分结果）。
     public var truncated: Bool = false
     /// 取消标记。
@@ -30,6 +30,9 @@ public class Session <: SessionLike {
     internal var regionCount: Int64 = 0
     /// 换行位置预扫描缓存。
     internal var lineIndexShared: Option<LineIndex> = None
+    /// 字节快照缓存：仅在输入长度（available）变化时重算，避免多个检测器/物化多次全量拷贝（O(n·D)）。
+    internal var bytesSnapshot: Option<Array<UInt8>> = None
+    internal var bytesSnapshotLen: Int64 = -1
     /// 并发互斥：保护 marks 与树的写入。
     internal let lock: Mutex = Mutex()
 
@@ -40,7 +43,7 @@ public class Session <: SessionLike {
         this.registry = if (let Some(r) <- registry) { r } else { defaultRegistry() }
         this.tree = RegionTree()
         this.marks = HashMap<String, TypeMark>()
-        this.objCache = HashMap<Int64, Obj>()
+        this.objCache = HashMap<String, Obj>()
     }
 
     // ---------- SessionLike ----------
@@ -50,7 +53,18 @@ public class Session <: SessionLike {
     }
 
     public func inputBytes(): Array<UInt8> {
-        input.toBytes()
+        // 输入只读且仅单调增长（available 随拉取递增），因此按 available 失效快照是安的：
+        // 同一 available 对应同一驻留内容。首次拷贝后各检测器与物化共享同一快照。
+        let n = input.available
+        if (let Some(b) <- bytesSnapshot) {
+            if (bytesSnapshotLen == n) {
+                return b
+            }
+        }
+        let b = input.toBytes()
+        bytesSnapshot = Some(b)
+        bytesSnapshotLen = n
+        b
     }
 
     public func scanConfig(): ScanConfig {
@@ -98,7 +112,7 @@ public class Session <: SessionLike {
     internal var coarseCache: Option<TypeId> = None
 
     internal func coarseClassify(): String {
-        let data = input.toBytes()
+        let data = inputBytes()
         let n = data.size
         if (n == 0) {
             return "text.plain"
@@ -360,17 +374,14 @@ public class Session <: SessionLike {
     }
 
     /// 混合类型遍历：按位置顺序遍历全部区域（11）。
+    /// 顺序与区域树遍历序一致：位置升序；同起点外层优先；再按 TypeId 字典序。
     public func walk(visitor: (Region, Int64) -> WalkControl): Unit {
         let depth = 0
         walkInto(tree.roots, visitor, depth)
     }
 
     internal func walkInto(list: ArrayList<Region>, visitor: (Region, Int64) -> WalkControl, depth: Int64): Bool {
-        let sorted = ArrayList<Region>()
-        for (r in list) {
-            sorted.add(r)
-        }
-        tree.sortByKeyPublic(sorted)
+        let sorted = tree.sortedLike(list)
         for (r in sorted) {
             let c = visitor(r, depth)
             if (walkCtrlEq(c, WalkControl.Stop)) {
@@ -398,21 +409,24 @@ public class Session <: SessionLike {
 
     /// 对象视图（惰性物化并缓存，C6）。
     public func objectOf(region: Region): Obj {
-        if (let Some(o) <- objCache.get(hashOf(region))) {
+        let key = cacheKey(region)
+        if (let Some(o) <- objCache.get(key)) {
             return o
         }
         let o = buildObject(region)
-        objCache[hashOf(region)] = o
+        objCache[key] = o
         o
     }
 
-    internal func hashOf(region: Region): Int64 {
-        region.span.start * 1000003 + region.span.end
+    /// 缓存键：同一区间的对象视图一致（与区域类型无关），故以区间为键。
+    /// 用分隔符拼接的精确字符串而非算术哈希，避免不同区间因碰撞/溢出而误命中。
+    internal func cacheKey(region: Region): String {
+        "${region.span.start}:${region.span.end}"
     }
 
     /// 按区域类型构建对象视图（9.3 目标格式规则）。
     internal func buildObject(region: Region): Obj {
-        let data = input.toBytes()
+        let data = inputBytes()
         let s = region.span
         let t = region.typeId.text
         if (t == "text.md.frontmatter" || t.startsWith("text.md.frontmatter")) {
